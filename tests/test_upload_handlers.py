@@ -34,6 +34,7 @@ class FakeFSMContext:
 def _make_document_message(
     file_name: str = "advice.txt",
     file_bytes: bytes = "Збирайте гриби у березовому гаю.".encode("utf-8"),
+    file_size: int = 1024,
     user_id: int = 42,
     full_name: str = "Їжачок",
 ) -> MagicMock:
@@ -42,6 +43,7 @@ def _make_document_message(
     message.document = MagicMock()
     message.document.file_id = "file_123"
     message.document.file_name = file_name
+    message.document.file_size = file_size
 
     message.from_user = MagicMock()
     message.from_user.id = user_id
@@ -77,6 +79,25 @@ class TestUploadHandlers(unittest.IsolatedAsyncioTestCase):
 
         self.rag_service = MagicMock()
         self.rag_service.process_and_save_document = AsyncMock(return_value=["doc_101_chunk_0"])
+
+    async def test_upload_rejects_file_larger_than_20mb(self) -> None:
+        """Якщо розмір файлу перевищує 20 МБ, бот відповідає про обмеження і не завантажує файл."""
+        too_large_size = 20 * 1024 * 1024 + 1
+        message = _make_document_message(file_size=too_large_size)
+
+        await handle_document_upload(
+            message=message,
+            state=self.state,
+            doc_repo=self.doc_repo,
+            groq_service=self.groq_service,
+            rag_service=self.rag_service,
+        )
+
+        message.answer.assert_awaited_once_with(
+            "Цей сувій занадто важкий для мене, приймаю до 20 МБ."
+        )
+        message.bot.download.assert_not_awaited()
+        self.doc_repo.add_document.assert_not_awaited()
 
     async def test_upload_with_detected_location_saves_immediately(self) -> None:
         """Якщо GroqService визначив локацію, документ одразу зберігається у БД та VectorStore."""

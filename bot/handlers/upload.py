@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
+FILE_TOO_LARGE_MESSAGE = "Цей сувій занадто важкий для мене, приймаю до 20 МБ."
+
 MISSING_LOCATION_PROMPT = (
     "Я не зрозумів, для якого місця ця порада. Напиши місце текстом"
 )
@@ -109,11 +112,16 @@ async def handle_document_upload(
 ) -> None:
     """Обробляє повідомлення з прикріпленим документом.
 
-    Завантажує файл у пам'ять, вилучає текст через ParserFactory та визначає локацію через GroqService.
-    Якщо локацію не знайдено — переводить користувача у стан UploadState.waiting_for_location.
+    Перевіряє розмір файлу (до 20 МБ), завантажує файл у пам'ять, вилучає текст через ParserFactory
+    та визначає локацію через GroqService. Якщо локацію не знайдено — переводить користувача
+    у стан UploadState.waiting_for_location.
     """
     document = message.document
     if document is None or message.bot is None:
+        return
+
+    if document.file_size and document.file_size > MAX_FILE_SIZE_BYTES:
+        await message.answer(FILE_TOO_LARGE_MESSAGE)
         return
 
     file_name = document.file_name or f"document_{document.file_id}.txt"
