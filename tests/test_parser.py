@@ -1,4 +1,4 @@
-"""Тести для сервісу парсингу файлів (патерн Strategy)."""
+"""Тести для сервісу парсингу файлів (патерн Strategy) та нормалізації тексту."""
 
 import unittest
 
@@ -11,11 +11,12 @@ from bot.services.parser import (
     ParserFactory,
     PDFParser,
     TxtParser,
+    normalize_text,
 )
 
 
 class TestFileParser(unittest.TestCase):
-    """Набір тестів для перевірки стратегій вилучення тексту та фабрики."""
+    """Набір тестів для перевірки стратегій вилучення тексту, фабрики та очищення тексту."""
 
     def test_parser_factory_resolution(self) -> None:
         """Перевірка коректного вибору стратегій за розширенням."""
@@ -69,6 +70,18 @@ class TestFileParser(unittest.TestCase):
         parser = DocxParser()
         with self.assertRaises(DocumentParsingError):
             parser.extract_text(b"")
+
+    def test_normalize_text_collapses_whitespace_and_control_chars(self) -> None:
+        """Чиста функція normalize_text прибирає розриви сторінок, табуляції, зайві пробіли та спецсимволи."""
+        dirty_text = "  Порада\n\n\nдля   лісових\t\tзвірів\x0c\u200b\x00  у   бору. \r\n "
+        self.assertEqual(normalize_text(dirty_text), "Порада для лісових звірів у бору.")
+
+    def test_parser_from_factory_normalizes_extracted_text(self) -> None:
+        """Парсер, отриманий через ParserFactory, повертає щільний нормалізований текст без зайвих пробілів."""
+        parser = ParserFactory.get_parser("txt")
+        dirty_bytes = "Перший рядок.\n\n\n\n   Другий\t\tрядок\x0c   третій.".encode("utf-8")
+        result = parser.extract_text(dirty_bytes)
+        self.assertEqual(result, "Перший рядок. Другий рядок третій.")
 
 
 if __name__ == "__main__":

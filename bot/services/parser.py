@@ -2,15 +2,41 @@
 
 import io
 import logging
+import re
 from abc import ABC, abstractmethod
 
 from bot.exceptions import DocumentParsingError, UnsupportedFileFormatError
 
 logger = logging.getLogger(__name__)
 
+_INVISIBLE_CHARS_PATTERN = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\ufeff]")
+_WHITESPACE_PATTERN = re.compile(r"\s+")
+
+
+def normalize_text(text: str) -> str:
+    """Чиста функція очищення та нормалізації тексту після парсингу.
+
+    Видаляє невидимі керівні символи та стискає послідовності пробілів і переносів у один пробіл.
+    """
+    cleaned = _INVISIBLE_CHARS_PATTERN.sub(" ", text)
+    return _WHITESPACE_PATTERN.sub(" ", cleaned).strip()
+
 
 class FileParser(ABC):
     """Базовий абстрактний клас стратегії вилучення тексту з файлу."""
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Автоматично обгортає extract_text у підкласах нормалізацією тексту."""
+        super().__init_subclass__(**kwargs)
+        raw_extract = cls.__dict__.get("extract_text")
+        if callable(raw_extract) and not getattr(raw_extract, "_is_normalized", False):
+
+            def _normalized_extract(self: FileParser, file_bytes: bytes) -> str:
+                raw_text = raw_extract(self, file_bytes)
+                return normalize_text(raw_text)
+
+            _normalized_extract._is_normalized = True  # type: ignore[attr-defined]
+            setattr(cls, "extract_text", _normalized_extract)
 
     @abstractmethod
     def extract_text(self, file_bytes: bytes) -> str:
@@ -30,7 +56,7 @@ class PDFParser(FileParser):
         """Вилучає текст з усіх сторінок PDF-файлу.
 
         :param file_bytes: Байти PDF-документа.
-        :return: Об'єднаний текст сторінок.
+        :return: Об'єднаний та нормалізований текст сторінок.
         :raises DocumentParsingError: При пошкодженому або нечитабельному PDF.
         """
         if not file_bytes:
@@ -61,7 +87,7 @@ class PDFParser(FileParser):
                 if extracted:
                     pages_text.append(extracted.strip())
 
-            full_text = "\n\n".join(pages_text).strip()
+            full_text = normalize_text(" ".join(pages_text))
             if not full_text:
                 logger.warning("PDF-файл не містить текстового шару (можливо, це скановане зображення).")
 
@@ -84,7 +110,7 @@ class DocxParser(FileParser):
         """Вилучає текст із параграфів та таблиць docx-документа.
 
         :param file_bytes: Байти DOCX-документа.
-        :return: Об'єднаний текст документа.
+        :return: Об'єднаний та нормалізований текст документа.
         :raises DocumentParsingError: При пошкодженому архіві чи структурі DOCX.
         """
         if not file_bytes:
@@ -113,7 +139,7 @@ class DocxParser(FileParser):
                     if row_cells:
                         text_blocks.append(" | ".join(row_cells))
 
-            full_text = "\n\n".join(text_blocks).strip()
+            full_text = normalize_text(" ".join(text_blocks))
             logger.info("Успішно вилучено %d символів тексту з DOCX", len(full_text))
             return full_text
         except Exception as exc:
@@ -128,14 +154,14 @@ class TxtParser(FileParser):
         """Декодує байти у форматі UTF-8 (підтримує також UTF-8 з BOM маркою).
 
         :param file_bytes: Байти TXT-документа.
-        :return: Декодований текст.
+        :return: Декодований та нормалізований текст.
         :raises DocumentParsingError: Якщо кодування файлу не є UTF-8.
         """
         if not file_bytes:
             return ""
 
         try:
-            return file_bytes.decode("utf-8-sig").strip()
+            return normalize_text(file_bytes.decode("utf-8-sig"))
         except UnicodeDecodeError as exc:
             logger.error("Помилка декодування TXT файлу: не UTF-8 (%s)", exc)
             raise DocumentParsingError(
@@ -144,13 +170,18 @@ class TxtParser(FileParser):
 
 
 class ParserFactory:
-    """Фабрика для вибору відповідної стратегії парсингу за розширенням файлу."""
+    """Фабрика для вибору відповідної стратегії парсингу та нормалізації тексту за розширенням файлу."""
 
     _registry: dict[str, type[FileParser]] = {
         "pdf": PDFParser,
         "docx": DocxParser,
         "txt": TxtParser,
     }
+
+    @staticmethod
+    def normalize(text: str) -> str:
+        """Нормалізує вилучений текст: re.sub(r'\\s+', ' ', text).strip()."""
+        return normalize_text(text)
 
     @classmethod
     def get_parser(cls, extension: str) -> FileParser:

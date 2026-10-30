@@ -7,6 +7,7 @@ from bot.services.parser import (
     ParserFactory,
     PDFParser,
     TxtParser,
+    normalize_text,
 )
 from bot.services.rag_engine import RAGService, chunk_text
 
@@ -19,4 +20,5 @@ __all__ = [
     "RAGService",
     "TxtParser",
     "chunk_text",
+    "normalize_text",
 ]
