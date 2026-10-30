@@ -2,10 +2,16 @@
 
 import io
 import unittest
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from bot.handlers.upload import handle_document_upload, handle_location_input
+from bot.handlers.upload import (
+    handle_cancel_upload,
+    handle_document_upload,
+    handle_location_command_warning,
+    handle_location_input,
+)
 from bot.states.upload_states import UploadState
 
 
@@ -25,6 +31,9 @@ class FakeFSMContext:
 
     async def get_data(self) -> dict[str, Any]:
         return dict(self.data)
+
+    async def get_state(self) -> Any:
+        return self.state
 
     async def clear(self) -> None:
         self.state = None
@@ -183,6 +192,55 @@ class TestUploadHandlers(unittest.IsolatedAsyncioTestCase):
         )
         self.rag_service.process_and_save_document.assert_awaited_once()
         self.assertIsNone(self.state.state)
+
+    async def test_waiting_for_location_command_warns_and_does_not_save(self) -> None:
+        """Команда зі слешем у стані waiting_for_location повертає попередження і НЕ зберігає документ."""
+        await self.state.set_state(UploadState.waiting_for_location)
+        await self.state.update_data(
+            text="Ховайте горіхи у дуплі старого дуба.",
+            file_name="squirrel.txt",
+            author_id="77",
+            author_name="Білочка",
+        )
+
+        cmd_msg = MagicMock()
+        cmd_msg.text = "/help"
+        cmd_msg.answer = AsyncMock()
+
+        await handle_location_command_warning(message=cmd_msg)
+
+        cmd_msg.answer.assert_awaited_once_with(
+            "Будь ласка, введіть назву локації звичайним текстом (без '/'). "
+            "Або натисніть /cancel для скасування процесу."
+        )
+        self.doc_repo.add_document.assert_not_awaited()
+        self.assertEqual(self.state.state, UploadState.waiting_for_location)
+
+    async def test_cancel_command_clears_state_and_notifies_user(self) -> None:
+        """Команда /cancel очищує FSM-стан завантаження документа та повідомляє про скасування."""
+        await self.state.set_state(UploadState.waiting_for_location)
+        await self.state.update_data(
+            text="Ховайте горіхи у дуплі старого дуба.",
+            file_name="squirrel.txt",
+        )
+
+        cancel_msg = MagicMock()
+        cancel_msg.text = "/cancel"
+        cancel_msg.answer = AsyncMock()
+
+        await handle_cancel_upload(message=cancel_msg, state=self.state)
+
+        self.assertIsNone(self.state.state)
+        self.assertEqual(self.state.data, {})
+        cancel_msg.answer.assert_awaited_once()
+        self.doc_repo.add_document.assert_not_awaited()
+
+    def test_upload_py_contains_required_filters(self) -> None:
+        """Перевірка наявності фільтрів F.text & ~F.text.startswith('/') та F.text.startswith('/')."""
+        upload_file = Path(__file__).resolve().parent.parent / "bot" / "handlers" / "upload.py"
+        source = upload_file.read_text(encoding="utf-8")
+        self.assertIn("F.text & ~F.text.startswith('/')", source)
+        self.assertIn("@router.message(UploadState.waiting_for_location, F.text.startswith('/'))", source)
 
 
 if __name__ == "__main__":

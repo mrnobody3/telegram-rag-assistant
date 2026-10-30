@@ -18,13 +18,29 @@ if TYPE_CHECKING:
 
 try:
     from aiogram import F, Router
+    from aiogram.filters import Command
 except ImportError:
 
     class _FallbackF:
         """Запасний об'єкт фільтра F для імпорту без встановленого aiogram."""
 
-        def __getattr__(self, name: str) -> Any:
-            return name
+        def __getattr__(self, name: str) -> "_FallbackF":
+            return self
+
+        def __call__(self, *args: Any, **kwargs: Any) -> "_FallbackF":
+            return self
+
+        def __invert__(self) -> "_FallbackF":
+            return self
+
+        def __and__(self, other: Any) -> "_FallbackF":
+            return self
+
+    class Command:  # type: ignore[no-redef]
+        """Запасний клас Command для імпорту без встановленого aiogram."""
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.commands = args
 
     class Router:  # type: ignore[no-redef]
         """Запасний клас Router для імпорту та юніт-тестування без встановленого aiogram."""
@@ -47,6 +63,13 @@ FILE_TOO_LARGE_MESSAGE = "Цей сувій занадто важкий для �
 MISSING_LOCATION_PROMPT = (
     "Я не зрозумів, для якого місця ця порада. Напиши місце текстом"
 )
+
+COMMAND_IN_LOCATION_STATE_WARNING = (
+    "Будь ласка, введіть назву локації звичайним текстом (без '/'). "
+    "Або натисніть /cancel для скасування процесу."
+)
+
+CANCEL_UPLOAD_MESSAGE = "Завантаження документа скасовано."
 
 
 def _extract_extension(file_name: str) -> str:
@@ -100,6 +123,16 @@ async def _persist_and_index_document(
         },
     )
     return int(doc.id)
+
+
+@router.message(Command("cancel"))
+async def handle_cancel_upload(
+    message: "Message",
+    state: "FSMContext",
+) -> None:
+    """Скасовує активний процес завантаження документа та очищує стан FSM."""
+    await state.clear()
+    await message.answer(CANCEL_UPLOAD_MESSAGE)
 
 
 @router.message(F.document)
@@ -176,7 +209,7 @@ async def handle_document_upload(
         await message.answer("Сталася внутрішня помилка під час збереження документа.")
 
 
-@router.message(UploadState.waiting_for_location, F.text)
+@router.message(UploadState.waiting_for_location, F.text & ~F.text.startswith('/'))
 async def handle_location_input(
     message: "Message",
     state: "FSMContext",
@@ -224,3 +257,9 @@ async def handle_location_input(
     except Exception as exc:
         logger.exception("Непередбачена помилка у стані waiting_for_location: %s", exc)
         await message.answer("Сталася внутрішня помилка під час збереження документа.")
+
+
+@router.message(UploadState.waiting_for_location, F.text.startswith('/'))
+async def handle_location_command_warning(message: "Message") -> None:
+    """Попереджає користувача при спробі ввести команду замість назви локації та не зберігає документ."""
+    await message.answer(COMMAND_IN_LOCATION_STATE_WARNING)
