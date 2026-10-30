@@ -1,12 +1,21 @@
 """Сервіс для асинхронної взаємодії з Groq API (екстракція метаданих та генерація RAG-відповідей)."""
 
+import asyncio
+import functools
 import json
 import logging
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
-from bot.exceptions import LLMServiceError
+from bot.exceptions import (
+    RATE_LIMIT_USER_MESSAGE,
+    LLMServiceError,
+    RateLimitExceededError,
+)
 
 logger = logging.getLogger(__name__)
+
+F_Return = TypeVar("F_Return")
 
 EXTRACT_LOCATION_SYSTEM_PROMPT = (
     "Проаналізуй текст. Визнач локацію або місце, для якого ця порада "
@@ -40,6 +49,65 @@ def _is_model_not_found_error(exc: Exception) -> bool:
         or "does not exist" in err_text
         or "model_decommissioned" in err_text
     )
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    """Чиста функція перевірки, чи є виняток помилкою Rate Limit (HTTP 429 / Too Many Requests)."""
+    if exc.__class__.__name__ == "RateLimitError":
+        return True
+    status_code = getattr(exc, "status_code", None)
+    if status_code == 429:
+        return True
+    err_text = str(exc).lower()
+    return (
+        "429" in err_text
+        or "too many requests" in err_text
+        or "rate_limit_exceeded" in err_text
+        or "rate limit" in err_text
+    )
+
+
+def _with_rate_limit_retry(
+    func: Callable[..., Awaitable[F_Return]],
+) -> Callable[..., Awaitable[F_Return]]:
+    """Декоратор повторних спроб з експоненційною затримкою (tenacity або вбудований async backoff) для HTTP 429."""
+    try:
+        from tenacity import (
+            retry,
+            retry_if_exception,
+            stop_after_attempt,
+            wait_exponential,
+        )
+
+        return retry(
+            retry=retry_if_exception(_is_rate_limit_error),
+            wait=wait_exponential(multiplier=1, min=1, max=8),
+            stop=stop_after_attempt(3),
+            reraise=True,
+        )(func)
+    except ImportError:
+
+        @functools.wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> F_Return:
+            max_attempts = 3
+            delay = 1.0
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as exc:
+                    if not _is_rate_limit_error(exc) or attempt == max_attempts:
+                        raise
+                    logger.warning(
+                        "Groq API Rate Limit (429), спроба %d/%d через %.1f с...",
+                        attempt,
+                        max_attempts,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+                    delay *= 2.0
+            raise RuntimeError("Недосяжний стан циклу retry")
+
+        return wrapper
 
 
 def _parse_location_json(raw_content: str) -> str | None:
@@ -133,6 +201,14 @@ class GroqService:
 
         return AsyncGroq(api_key=api_key)
 
+    @_with_rate_limit_retry
+    async def _call_chat_completion(self, model_name: str, **kwargs: Any) -> Any:
+        """Виконує один виклик до Groq API, обгорнутий у декоратор @retry з експоненційною затримкою."""
+        return await self._client.chat.completions.create(
+            model=model_name,
+            **kwargs,
+        )
+
     async def _create_completion_with_fallback(
         self,
         primary_model: str,
@@ -148,8 +224,8 @@ class GroqService:
         last_exc: Exception | None = None
         for model_name in candidates:
             try:
-                response = await self._client.chat.completions.create(
-                    model=model_name,
+                response = await self._call_chat_completion(
+                    model_name=model_name,
                     **kwargs,
                 )
                 return response, model_name
@@ -170,6 +246,7 @@ class GroqService:
 
         :param text_sample: Фрагмент тексту документа.
         :return: Назва локації або None, якщо локацію не вказано.
+        :raises RateLimitExceededError: При перевищенні лімітів 429 Too Many Requests.
         :raises LLMServiceError: При помилці звернення до Groq API або невалідному JSON.
         """
         cleaned_sample = text_sample.strip()
@@ -199,6 +276,9 @@ class GroqService:
         except LLMServiceError:
             raise
         except Exception as exc:
+            if _is_rate_limit_error(exc):
+                logger.warning("Перевищено Rate Limit Groq API (extract_location): %s", exc)
+                raise RateLimitExceededError(RATE_LIMIT_USER_MESSAGE) from exc
             logger.error("Помилка під час виклику Groq API (extract_location): %s", exc)
             raise LLMServiceError(f"Помилка визначення локації через Groq API: {exc}") from exc
 
@@ -212,6 +292,7 @@ class GroqService:
         :param question: Запитання користувача.
         :param context_chunks: Список словників із текстом та метаданими джерел.
         :return: Згенерована відповідь із вказанням джерела.
+        :raises RateLimitExceededError: При перевищенні лімітів 429 Too Many Requests.
         :raises LLMServiceError: При порожньому запитанні або помилці API.
         """
         cleaned_question = question.strip()
@@ -248,5 +329,8 @@ class GroqService:
         except LLMServiceError:
             raise
         except Exception as exc:
+            if _is_rate_limit_error(exc):
+                logger.warning("Перевищено Rate Limit Groq API (generate_answer): %s", exc)
+                raise RateLimitExceededError(RATE_LIMIT_USER_MESSAGE) from exc
             logger.error("Помилка під час виклику Groq API (generate_answer): %s", exc)
             raise LLMServiceError(f"Помилка генерації відповіді через Groq API: {exc}") from exc

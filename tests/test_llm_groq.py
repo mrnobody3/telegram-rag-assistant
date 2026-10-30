@@ -1,10 +1,10 @@
-"""Тести для сервісу GroqService (вилучення локації та генерація відповідей)."""
+"""Тести для сервісу GroqService (вилучення локації, генерація відповідей та обробка Rate Limits)."""
 
 import unittest
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from bot.exceptions import LLMServiceError
+from bot.exceptions import LLMServiceError, RateLimitExceededError
 from bot.services.llm_groq import GroqService
 
 
@@ -116,6 +116,33 @@ class TestGroqService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.mock_client.chat.completions.create.await_count, 2)
         second_call_model = self.mock_client.chat.completions.create.call_args_list[1].kwargs["model"]
         self.assertIn(second_call_model, ("openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"))
+
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_rate_limit_retries_and_succeeds(self, mock_sleep: AsyncMock) -> None:
+        """При отриманні 429 Too Many Requests виконується повторна спроба з експоненційною затримкою."""
+        self.mock_client.chat.completions.create.side_effect = [
+            Exception("Error code: 429 - Too Many Requests (rate_limit_exceeded)"),
+            _make_mock_response('{"location": "сосновий бір"}'),
+        ]
+
+        result = await self.service.extract_location("Порада для соснового бору.")
+        self.assertEqual(result, "сосновий бір")
+        self.assertEqual(self.mock_client.chat.completions.create.await_count, 2)
+
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_rate_limit_exhausted_raises_friendly_error(self, mock_sleep: AsyncMock) -> None:
+        """Якщо ліміт 429 не минає після повторів, викидається RateLimitExceededError із дружнім повідомленням."""
+        self.mock_client.chat.completions.create.side_effect = Exception(
+            "Error code: 429 - Too Many Requests: rate_limit_exceeded"
+        )
+
+        with self.assertRaises(RateLimitExceededError) as ctx:
+            await self.service.generate_answer("Де ростуть гриби?", [{"text": "У лісі"}])
+
+        self.assertEqual(
+            ctx.exception.message,
+            "Зараз багато звірів читають документи, зачекайте хвилинку і спробуйте знову",
+        )
 
 
 if __name__ == "__main__":

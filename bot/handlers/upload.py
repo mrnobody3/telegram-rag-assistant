@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from bot.exceptions import AppException
+from bot.exceptions import AppException, RateLimitExceededError
 from bot.services.parser import ParserFactory
 from bot.states.upload_states import UploadState
 
@@ -157,6 +157,9 @@ async def handle_document_upload(
         await message.answer(
             f"Документ '{file_name}' успішно збережено для локації '{location}' (ID: {doc_id})."
         )
+    except RateLimitExceededError as exc:
+        logger.warning("Перевищено ліміт запитів при завантаженні '%s': %s", file_name, exc)
+        await message.answer(exc.message)
     except AppException as exc:
         logger.warning("Помилка обробки завантаженого документа '%s': %s", file_name, exc)
         await message.answer(f"Помилка обробки файлу: {exc.message}")
@@ -204,6 +207,9 @@ async def handle_location_input(
         await message.answer(
             f"Дякую! Документ '{file_name}' збережено для локації '{location}' (ID: {doc_id})."
         )
+    except RateLimitExceededError as exc:
+        logger.warning("Перевищено ліміт запитів у стані waiting_for_location: %s", exc)
+        await message.answer(exc.message)
     except AppException as exc:
         logger.warning("Помилка збереження документа після введення локації: %s", exc)
         await message.answer(f"Помилка збереження документа: {exc.message}")

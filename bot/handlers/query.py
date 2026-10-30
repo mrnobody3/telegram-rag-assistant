@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from bot.exceptions import AppException
+from bot.exceptions import AppException, RateLimitExceededError
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -91,6 +91,9 @@ async def handle_text_query(
 
         formatted_response = format_answer_with_sources(answer=answer, documents=documents)
         await message.answer(formatted_response)
+    except RateLimitExceededError as exc:
+        logger.warning("Перевищено ліміт запитів при обробці запитання '%s': %s", query, exc)
+        await message.answer(exc.message)
     except AppException as exc:
         logger.warning("Помилка обробки запитання '%s': %s", query, exc)
         await message.answer(f"Не вдалося знайти відповідь: {exc.message}")

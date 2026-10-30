@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
+from bot.exceptions import RateLimitExceededError
 from bot.handlers.query import format_answer_with_sources, handle_text_query
 
 
@@ -62,6 +63,26 @@ class TestQueryHandler(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Шукайте на галявині біля струмка.", reply_text)
         self.assertIn("Лисичка", reply_text)
         self.assertIn("2026-10-30", reply_text)
+
+    async def test_handle_text_query_rate_limit_message(self) -> None:
+        """При вичерпанні лімітів запитів користувач отримує точне повідомлення без префіксів."""
+        message = MagicMock()
+        message.text = "Де шукати гриби?"
+        message.answer = AsyncMock()
+
+        doc_repo = MagicMock()
+        rag_service = MagicMock()
+        rag_service.answer_question = AsyncMock(side_effect=RateLimitExceededError())
+
+        await handle_text_query(
+            message=message,
+            rag_service=rag_service,
+            doc_repo=doc_repo,
+        )
+
+        message.answer.assert_awaited_once_with(
+            "Зараз багато звірів читають документи, зачекайте хвилинку і спробуйте знову"
+        )
 
 
 if __name__ == "__main__":
