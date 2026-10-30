@@ -4,6 +4,8 @@ import io
 import logging
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
+from typing import cast
 
 from bot.exceptions import DocumentParsingError, UnsupportedFileFormatError
 
@@ -30,12 +32,13 @@ class FileParser(ABC):
         super().__init_subclass__(**kwargs)
         raw_extract = cls.__dict__.get("extract_text")
         if callable(raw_extract) and not getattr(raw_extract, "_is_normalized", False):
+            typed_extract = cast(Callable[[FileParser, bytes], str], raw_extract)
 
             def _normalized_extract(self: FileParser, file_bytes: bytes) -> str:
-                raw_text = raw_extract(self, file_bytes)
+                raw_text = typed_extract(self, file_bytes)
                 return normalize_text(raw_text)
 
-            _normalized_extract._is_normalized = True  # type: ignore[attr-defined]
+            setattr(_normalized_extract, "_is_normalized", True)
             setattr(cls, "extract_text", _normalized_extract)
 
     @abstractmethod

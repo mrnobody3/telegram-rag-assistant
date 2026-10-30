@@ -41,11 +41,11 @@ class FakeFSMContext:
 
 
 def _make_document_message(
-    file_name: str = "advice.txt",
-    file_bytes: bytes = "Збирайте гриби у березовому гаю.".encode("utf-8"),
-    file_size: int = 1024,
-    user_id: int = 42,
-    full_name: str = "Їжачок",
+        file_name: str = "advice.txt",
+        file_bytes: bytes = "Збирайте гриби у березовому гаю.".encode("utf-8"),
+        file_size: int = 1024,
+        user_id: int = 42,
+        full_name: str = "Їжачок",
 ) -> MagicMock:
     """Створює мок об'єкта Message із прикріпленим документом."""
     message = MagicMock()
@@ -59,7 +59,7 @@ def _make_document_message(
     message.from_user.full_name = full_name
     message.from_user.username = "hedgehog"
 
-    async def _download(file: Any, destination: io.BytesIO | None = None) -> io.BytesIO:
+    async def _download(_file: Any, destination: io.BytesIO | None = None) -> io.BytesIO:
         buf = destination if destination is not None else io.BytesIO()
         buf.write(file_bytes)
         buf.seek(0)

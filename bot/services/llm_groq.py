@@ -50,9 +50,9 @@ def _is_model_not_found_error(exc: Exception) -> bool:
     """Чиста функція перевірки, чи викликана помилка відсутністю моделі (404 / model_not_found)."""
     err_text = str(exc).lower()
     return (
-        "model_not_found" in err_text
-        or "does not exist" in err_text
-        or "model_decommissioned" in err_text
+            "model_not_found" in err_text
+            or "does not exist" in err_text
+            or "model_decommissioned" in err_text
     )
 
 
@@ -65,15 +65,15 @@ def _is_rate_limit_error(exc: BaseException) -> bool:
         return True
     err_text = str(exc).lower()
     return (
-        "429" in err_text
-        or "too many requests" in err_text
-        or "rate_limit_exceeded" in err_text
-        or "rate limit" in err_text
+            "429" in err_text
+            or "too many requests" in err_text
+            or "rate_limit_exceeded" in err_text
+            or "rate limit" in err_text
     )
 
 
 def _with_rate_limit_retry(
-    func: Callable[..., Awaitable[F_Return]],
+        func: Callable[..., Awaitable[F_Return]],
 ) -> Callable[..., Awaitable[F_Return]]:
     """Декоратор повторних спроб з експоненційною затримкою (tenacity або вбудований async backoff) для HTTP 429."""
     try:
@@ -145,10 +145,10 @@ def _format_context_chunks(context_chunks: list[dict[str, Any]]) -> str:
     for idx, chunk in enumerate(context_chunks, start=1):
         text = str(chunk.get("text") or chunk.get("document") or "").strip()
         source = (
-            chunk.get("source")
-            or chunk.get("file_name")
-            or chunk.get("doc_id")
-            or "Невідоме джерело"
+                chunk.get("source")
+                or chunk.get("file_name")
+                or chunk.get("doc_id")
+                or "Невідоме джерело"
         )
         author = chunk.get("author_name") or chunk.get("author")
         location = chunk.get("location")
@@ -169,11 +169,11 @@ class GroqService:
     """Сервіс інтеграції з Groq API для вилучення локації та генерації відповідей."""
 
     def __init__(
-        self,
-        api_key: str | None = None,
-        model_llm: str | None = None,
-        model_extract: str | None = None,
-        client: Any | None = None,
+            self,
+            api_key: str | None = None,
+            model_llm: str | None = None,
+            model_extract: str | None = None,
+            client: Any | None = None,
     ) -> None:
         """Ініціалізує асинхронний клієнт Groq та конфігурацію моделей.
 
@@ -182,6 +182,7 @@ class GroqService:
         :param model_extract: Модель для екстракції (за замовчуванням config.GROQ_MODEL_EXTRACT).
         :param client: Готовий екземпляр AsyncGroq (для ін'єкції залежностей та тестування).
         """
+        self._client: Any
         if client is not None:
             self._client = client
             self._api_key = api_key or ""
@@ -215,10 +216,10 @@ class GroqService:
         )
 
     async def _create_completion_with_fallback(
-        self,
-        primary_model: str,
-        fallback_models: tuple[str, ...],
-        **kwargs: Any,
+            self,
+            primary_model: str,
+            fallback_models: tuple[str, ...],
+            **kwargs: Any,
     ) -> tuple[Any, str]:
         """Виконує chat.completions.create із автоматичним перемиканням на доступні моделі при 404."""
         candidates: list[str] = [primary_model]
@@ -288,9 +289,9 @@ class GroqService:
             raise LLMServiceError(f"Помилка визначення локації через Groq API: {exc}") from exc
 
     async def generate_answer(
-        self,
-        question: str,
-        context_chunks: list[dict[str, Any]],
+            self,
+            question: str,
+            context_chunks: list[dict[str, Any]],
     ) -> str:
         """Генерує пораду лісового помічника на основі наданих контекстних чанків.
 

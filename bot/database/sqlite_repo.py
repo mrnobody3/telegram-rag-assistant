@@ -24,11 +24,11 @@ class DocumentRepository:
         self._session = session
 
     async def add_document(
-        self,
-        file_name: str,
-        location: str,
-        author_id: str,
-        author_name: str,
+            self,
+            file_name: str,
+            location: str,
+            author_id: str,
+            author_name: str,
     ) -> Document:
         """Створює новий запис документа в базі даних.
 
@@ -122,9 +122,9 @@ class DocumentRepository:
         return result.scalar_one_or_none()
 
     async def get_active_by_name_and_location(
-        self,
-        file_name: str,
-        location: str,
+            self,
+            file_name: str,
+            location: str,
     ) -> Document | None:
         """Отримує активний документ за назвою файлу та локацією.
 

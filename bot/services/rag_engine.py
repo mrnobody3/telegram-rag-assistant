@@ -14,9 +14,9 @@ DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-
 
 
 def chunk_text(
-    text: str,
-    chunk_size: int = 500,
-    overlap: int = 50,
+        text: str,
+        chunk_size: int = 500,
+        overlap: int = 50,
 ) -> list[str]:
     """Чиста функція розбиття тексту на чанки заданого розміру з перекриттям.
 
@@ -87,11 +87,11 @@ class RAGService:
     """Оркестратор RAG-пайплайну: чанкінг, ембединги (FastEmbed), векторний пошук та генерація відповіді."""
 
     def __init__(
-        self,
-        vector_store: VectorStore,
-        groq_service: GroqService,
-        embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
-        embedder: Any | None = None,
+            self,
+            vector_store: VectorStore,
+            groq_service: GroqService,
+            embedding_model_name: str = DEFAULT_EMBEDDING_MODEL,
+            embedder: Any | None = None,
     ) -> None:
         """Ініціалізує RAGService із залежностями VectorStore та GroqService.
 
@@ -133,11 +133,11 @@ class RAGService:
         return await asyncio.to_thread(self._embed_texts_sync, texts)
 
     async def process_and_save_document(
-        self,
-        text: str,
-        doc_id: int,
-        location: str = "general",
-        extra_metadata: dict[str, Any] | None = None,
+            self,
+            text: str,
+            doc_id: int,
+            location: str = "general",
+            extra_metadata: dict[str, Any] | None = None,
     ) -> list[str]:
         """Розбиває текст на чанки, генерує вектори через FastEmbed і зберігає їх у VectorStore.
 
@@ -171,9 +171,9 @@ class RAGService:
         )
 
     async def answer_question(
-        self,
-        query: str,
-        location_filter: str | None = None,
+            self,
+            query: str,
+            location_filter: str | None = None,
     ) -> str:
         """Перетворює запит у вектор, шукає топ-3 чанки у VectorStore та генерує відповідь через GroqService.
 

@@ -136,7 +136,8 @@ class TestGroqService(unittest.IsolatedAsyncioTestCase):
             client=self.mock_client,
         )
         self.mock_client.chat.completions.create.side_effect = [
-            Exception("Error code: 404 - {'error': {'message': 'The model `llama-3.1-8b-instant` does not exist', 'code': 'model_not_found'}}"),
+            Exception(
+                "Error code: 404 - {'error': {'message': 'The model `llama-3.1-8b-instant` does not exist', 'code': 'model_not_found'}}"),
             _make_mock_response('{"location": "березовий гай"}'),
         ]
 
@@ -147,7 +148,7 @@ class TestGroqService(unittest.IsolatedAsyncioTestCase):
         self.assertIn(second_call_model, ("openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"))
 
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_rate_limit_retries_and_succeeds(self, mock_sleep: AsyncMock) -> None:
+    async def test_rate_limit_retries_and_succeeds(self, _mock_sleep: AsyncMock) -> None:
         """При отриманні 429 Too Many Requests виконується повторна спроба з експоненційною затримкою."""
         self.mock_client.chat.completions.create.side_effect = [
             Exception("Error code: 429 - Too Many Requests (rate_limit_exceeded)"),
@@ -159,7 +160,7 @@ class TestGroqService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.mock_client.chat.completions.create.await_count, 2)
 
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_rate_limit_exhausted_raises_friendly_error(self, mock_sleep: AsyncMock) -> None:
+    async def test_rate_limit_exhausted_raises_friendly_error(self, _mock_sleep: AsyncMock) -> None:
         """Якщо ліміт 429 не минає після повторів, викидається RateLimitExceededError із дружнім повідомленням."""
         self.mock_client.chat.completions.create.side_effect = Exception(
             "Error code: 429 - Too Many Requests: rate_limit_exceeded"

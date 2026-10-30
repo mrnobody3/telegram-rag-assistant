@@ -17,6 +17,7 @@ except ImportError:
     class BaseMiddleware:  # type: ignore[no-redef]
         """Запасний клас BaseMiddleware для імпорту без встановленого aiogram."""
 
+
     Bot = Any  # type: ignore[assignment,misc]
     Dispatcher = Any  # type: ignore[assignment,misc]
     MemoryStorage = Any  # type: ignore[assignment,misc]
@@ -41,10 +42,10 @@ class DatabaseRepositoryMiddleware(BaseMiddleware):
         self._session_factory = session_factory
 
     async def __call__(
-        self,
-        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
-        event: TelegramObject,
-        data: dict[str, Any],
+            self,
+            handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+            event: TelegramObject,
+            data: dict[str, Any],
     ) -> Any:
         from bot.database.sqlite_repo import DocumentRepository
 

@@ -27,11 +27,11 @@ class VectorStore:
     """Клас-обгортка для роботи з векторною БД chromadb.PersistentClient."""
 
     def __init__(
-        self,
-        persist_path: str | Path | None = None,
-        collection_name: str = "forest_knowledge",
-        embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-        client: Any | None = None,
+            self,
+            persist_path: str | Path | None = None,
+            collection_name: str = "forest_knowledge",
+            embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+            client: Any | None = None,
     ) -> None:
         """Ініціалізує клієнт ChromaDB та налаштування моделі ембедингів.
 
@@ -42,7 +42,8 @@ class VectorStore:
         """
         self._collection_name = collection_name
         self._embedding_model_name = embedding_model_name
-        self._embedder: Any | None = None
+        self._embedder: Any = None
+        self._client: Any
 
         if client is not None:
             self._persist_path = Path(persist_path or "data/chroma_data")
@@ -81,13 +82,13 @@ class VectorStore:
         ]
 
     def _add_chunks_sync(
-        self,
-        chunks: list[str],
-        doc_id: int,
-        location: str = "general",
-        is_active: bool = True,
-        extra_metadatas: list[dict[str, Any]] | None = None,
-        embeddings: list[list[float]] | None = None,
+            self,
+            chunks: list[str],
+            doc_id: int,
+            location: str = "general",
+            is_active: bool = True,
+            extra_metadatas: list[dict[str, Any]] | None = None,
+            embeddings: list[list[float]] | None = None,
     ) -> list[str]:
         """Синхронне додавання чанків у ChromaDB."""
         if not chunks:
@@ -132,12 +133,12 @@ class VectorStore:
             raise VectorStoreError(f"Не вдалося додати чанки в ChromaDB: {exc}") from exc
 
     def _search_sync(
-        self,
-        query: str,
-        location: str | None = None,
-        top_k: int = 5,
-        is_active: bool = True,
-        query_embedding: list[float] | None = None,
+            self,
+            query: str,
+            location: str | None = None,
+            top_k: int = 5,
+            is_active: bool = True,
+            query_embedding: list[float] | None = None,
     ) -> list[RelevantChunk]:
         """Синхронний пошук релевантних чанків з фільтрацією."""
         logger.info(
@@ -223,13 +224,13 @@ class VectorStore:
             raise VectorStoreError(f"Помилка деактивації чанків doc_id={doc_id}: {exc}") from exc
 
     async def add_chunks(
-        self,
-        chunks: list[str],
-        doc_id: int,
-        location: str = "general",
-        is_active: bool = True,
-        extra_metadatas: list[dict[str, Any]] | None = None,
-        embeddings: list[list[float]] | None = None,
+            self,
+            chunks: list[str],
+            doc_id: int,
+            location: str = "general",
+            is_active: bool = True,
+            extra_metadatas: list[dict[str, Any]] | None = None,
+            embeddings: list[list[float]] | None = None,
     ) -> list[str]:
         """Асинхронно додає чанки тексту з метаданими у векторну колекцію."""
         return await asyncio.to_thread(
@@ -243,12 +244,12 @@ class VectorStore:
         )
 
     async def search(
-        self,
-        query: str,
-        location: str | None = None,
-        top_k: int = 5,
-        is_active: bool = True,
-        query_embedding: list[float] | None = None,
+            self,
+            query: str,
+            location: str | None = None,
+            top_k: int = 5,
+            is_active: bool = True,
+            query_embedding: list[float] | None = None,
     ) -> list[RelevantChunk]:
         """Асинхронно шукає релевантні чанки з фільтрацією за локацією та статусом активності."""
         return await asyncio.to_thread(

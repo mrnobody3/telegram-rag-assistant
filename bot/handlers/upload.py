@@ -10,8 +10,6 @@ from bot.services.parser import ParserFactory
 from bot.states.upload_states import UploadState
 
 if TYPE_CHECKING:
-    from aiogram.fsm.context import FSMContext
-    from aiogram.types import Message
     from bot.database.sqlite_repo import DocumentRepository
     from bot.services.llm_groq import GroqService
     from bot.services.rag_engine import RAGService
@@ -19,6 +17,8 @@ if TYPE_CHECKING:
 try:
     from aiogram import F, Router
     from aiogram.filters import Command
+    from aiogram.fsm.context import FSMContext
+    from aiogram.types import Message
 except ImportError:
 
     class _FallbackF:
@@ -27,31 +27,37 @@ except ImportError:
         def __getattr__(self, name: str) -> "_FallbackF":
             return self
 
-        def __call__(self, *args: Any, **kwargs: Any) -> "_FallbackF":
+        def __call__(self, *_args: Any, **_kwargs: Any) -> "_FallbackF":
             return self
 
         def __invert__(self) -> "_FallbackF":
             return self
 
-        def __and__(self, other: Any) -> "_FallbackF":
+        def __and__(self, _other: Any) -> "_FallbackF":
             return self
+
 
     class Command:  # type: ignore[no-redef]
         """Запасний клас Command для імпорту без встановленого aiogram."""
 
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
+        def __init__(self, *args: Any, **_kwargs: Any) -> None:
             self.commands = args
+
 
     class Router:  # type: ignore[no-redef]
         """Запасний клас Router для імпорту та юніт-тестування без встановленого aiogram."""
 
-        def message(self, *args: Any, **kwargs: Any) -> Any:
+        @staticmethod
+        def message(*_args: Any, **_kwargs: Any) -> Any:
             def decorator(func: Any) -> Any:
                 return func
 
             return decorator
 
+
     F = _FallbackF()  # type: ignore[assignment]
+    FSMContext = Any  # type: ignore[assignment,misc]
+    Message = Any  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -85,22 +91,22 @@ def _extract_author_info(message: Any) -> tuple[str, str]:
 
     author_id = str(getattr(user, "id", "unknown"))
     author_name = (
-        getattr(user, "full_name", None)
-        or getattr(user, "username", None)
-        or "Лісовий мешканець"
+            getattr(user, "full_name", None)
+            or getattr(user, "username", None)
+            or "Лісовий мешканець"
     )
     return author_id, str(author_name)
 
 
 async def _persist_and_index_document(
-    *,
-    file_name: str,
-    location: str,
-    author_id: str,
-    author_name: str,
-    text: str,
-    doc_repo: "DocumentRepository",
-    rag_service: "RAGService",
+        *,
+        file_name: str,
+        location: str,
+        author_id: str,
+        author_name: str,
+        text: str,
+        doc_repo: "DocumentRepository",
+        rag_service: "RAGService",
 ) -> int:
     """Єдина точка збереження документа в SQLite та індексації чанків у VectorStore.
 
@@ -127,8 +133,8 @@ async def _persist_and_index_document(
 
 @router.message(Command("cancel"))
 async def handle_cancel_upload(
-    message: "Message",
-    state: "FSMContext",
+        message: Message,
+        state: FSMContext,
 ) -> None:
     """Скасовує активний процес завантаження документа та очищує стан FSM."""
     await state.clear()
@@ -137,11 +143,11 @@ async def handle_cancel_upload(
 
 @router.message(F.document)
 async def handle_document_upload(
-    message: "Message",
-    state: "FSMContext",
-    doc_repo: "DocumentRepository",
-    groq_service: "GroqService",
-    rag_service: "RAGService",
+        message: Message,
+        state: FSMContext,
+        doc_repo: "DocumentRepository",
+        groq_service: "GroqService",
+        rag_service: "RAGService",
 ) -> None:
     """Обробляє повідомлення з прикріпленим документом.
 
@@ -211,10 +217,10 @@ async def handle_document_upload(
 
 @router.message(UploadState.waiting_for_location, F.text & ~F.text.startswith('/'))
 async def handle_location_input(
-    message: "Message",
-    state: "FSMContext",
-    doc_repo: "DocumentRepository",
-    rag_service: "RAGService",
+        message: Message,
+        state: FSMContext,
+        doc_repo: "DocumentRepository",
+        rag_service: "RAGService",
 ) -> None:
     """Приймає текстову назву локації від користувача у стані waiting_for_location та завершує індексацію."""
     location = (message.text or "").strip()
@@ -260,6 +266,6 @@ async def handle_location_input(
 
 
 @router.message(UploadState.waiting_for_location, F.text.startswith('/'))
-async def handle_location_command_warning(message: "Message") -> None:
+async def handle_location_command_warning(message: Message) -> None:
     """Попереджає користувача при спробі ввести команду замість назви локації та не зберігає документ."""
     await message.answer(COMMAND_IN_LOCATION_STATE_WARNING)

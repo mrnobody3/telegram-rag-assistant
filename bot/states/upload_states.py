@@ -13,6 +13,7 @@ except ImportError:
         def __repr__(self) -> str:
             return getattr(self, "_state_name", "State()")
 
+
     class StatesGroup:  # type: ignore[no-redef]
         """Запасний клас StatesGroup для середовищ без встановленого aiogram."""
 

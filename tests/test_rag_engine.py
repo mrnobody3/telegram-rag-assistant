@@ -10,7 +10,8 @@ from bot.services.rag_engine import RAGService, chunk_text
 class FakeEmbedder:
     """Тестовий ембедер, що імітує поведінку fastembed.TextEmbedding.embed."""
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    @staticmethod
+    def embed(texts: list[str]) -> list[list[float]]:
         return [[float(len(t)), 0.5, 0.1] for t in texts]
 
 

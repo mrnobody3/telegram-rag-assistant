@@ -9,13 +9,13 @@ from bot.exceptions import AppException, RateLimitExceededError
 from bot.services.llm_groq import NO_ANSWER_IN_DOCS_MESSAGE
 
 if TYPE_CHECKING:
-    from aiogram.types import Message
     from bot.database.models import Document
     from bot.database.sqlite_repo import DocumentRepository
     from bot.services.rag_engine import RAGService
 
 try:
     from aiogram import F, Router
+    from aiogram.types import Message
 except ImportError:
 
     class _FallbackF:
@@ -24,16 +24,20 @@ except ImportError:
         def __getattr__(self, name: str) -> Any:
             return name
 
+
     class Router:  # type: ignore[no-redef]
         """Запасний клас Router для імпорту та юніт-тестування без встановленого aiogram."""
 
-        def message(self, *args: Any, **kwargs: Any) -> Any:
+        @staticmethod
+        def message(*_args: Any, **_kwargs: Any) -> Any:
             def decorator(func: Any) -> Any:
                 return func
 
             return decorator
 
+
     F = _FallbackF()  # type: ignore[assignment]
+    Message = Any  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +45,8 @@ router = Router()
 
 
 def format_answer_with_sources(
-    answer: str,
-    documents: Sequence[Any],
+        answer: str,
+        documents: Sequence[Any],
 ) -> str:
     """Чиста функція форматування відповіді LLM із додаванням списку джерел (автор, дата, файл)."""
     cleaned_answer = answer.strip()
@@ -67,9 +71,9 @@ def format_answer_with_sources(
 
 @router.message(F.text)
 async def handle_text_query(
-    message: "Message",
-    rag_service: "RAGService",
-    doc_repo: "DocumentRepository",
+        message: Message,
+        rag_service: "RAGService",
+        doc_repo: "DocumentRepository",
 ) -> None:
     """Обробляє звичайні текстові повідомлення як запитання до бази лісових знань.
 
