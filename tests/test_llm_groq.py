@@ -5,7 +5,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from bot.exceptions import LLMServiceError, RateLimitExceededError
-from bot.services.llm_groq import GroqService
+from bot.services.llm_groq import (
+    GENERATE_ANSWER_SYSTEM_PROMPT,
+    NO_ANSWER_IN_DOCS_MESSAGE,
+    GroqService,
+)
 
 
 def _make_mock_response(content: str | None) -> MagicMock:
@@ -31,6 +35,31 @@ class TestGroqService(unittest.IsolatedAsyncioTestCase):
             model_extract="openai/gpt-oss-20b",
             client=self.mock_client,
         )
+
+    def test_strict_anti_hallucination_system_prompt(self) -> None:
+        """Системний промпт повинен містити суворі обмеження проти галюцинацій."""
+        self.assertIn(
+            "Ти відповідаєш ТІЛЬКИ на основі наданого контексту.",
+            GENERATE_ANSWER_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "На жаль, у лісових документах немає поради з цього приводу",
+            GENERATE_ANSWER_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "Заборонено використовувати будь-які зовнішні знання.",
+            GENERATE_ANSWER_SYSTEM_PROMPT,
+        )
+
+    async def test_generate_answer_empty_context_returns_no_answer_without_llm_call(self) -> None:
+        """Якщо контекстні чанки відсутні, одразу повертається стандартна відмова без виклику LLM."""
+        answer = await self.service.generate_answer("Як побудувати зореліт?", [])
+        self.assertEqual(
+            answer,
+            "На жаль, у лісових документах немає поради з цього приводу",
+        )
+        self.assertEqual(answer, NO_ANSWER_IN_DOCS_MESSAGE)
+        self.mock_client.chat.completions.create.assert_not_awaited()
 
     async def test_extract_location_returns_string(self) -> None:
         """Перевірка успішного вилучення локації з JSON-відповіді."""

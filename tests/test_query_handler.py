@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from bot.exceptions import RateLimitExceededError
 from bot.handlers.query import format_answer_with_sources, handle_text_query
+from bot.services.llm_groq import NO_ANSWER_IN_DOCS_MESSAGE
 
 
 class TestQueryHandler(unittest.IsolatedAsyncioTestCase):
@@ -28,6 +29,20 @@ class TestQueryHandler(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Лисичка", formatted)
         self.assertIn("2026-10-30", formatted)
         self.assertIn("berries.pdf", formatted)
+
+    def test_format_answer_skips_sources_on_no_answer_message(self) -> None:
+        """Якщо модель відповіла, що в документах немає поради, список джерел не прикріплюється."""
+        doc = MagicMock()
+        doc.id = 5
+        doc.file_name = "berries.pdf"
+        doc.author_name = "Лисичка"
+        doc.created_at = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+
+        formatted = format_answer_with_sources(
+            answer=NO_ANSWER_IN_DOCS_MESSAGE,
+            documents=[doc],
+        )
+        self.assertEqual(formatted, NO_ANSWER_IN_DOCS_MESSAGE)
 
     async def test_handle_text_query_fetches_docs_and_replies(self) -> None:
         """Обробник викликає RAGService, дістає документи за doc_id з репозиторію і відповідає."""

@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 F_Return = TypeVar("F_Return")
 
+NO_ANSWER_IN_DOCS_MESSAGE = "На жаль, у лісових документах немає поради з цього приводу"
+
 EXTRACT_LOCATION_SYSTEM_PROMPT = (
     "Проаналізуй текст. Визнач локацію або місце, для якого ця порада "
     "(наприклад, 'хвойний ліс'). Якщо не вказано - null. "
@@ -24,8 +26,11 @@ EXTRACT_LOCATION_SYSTEM_PROMPT = (
 )
 
 GENERATE_ANSWER_SYSTEM_PROMPT = (
-    "Ти лісовий помічник. Дай пораду на основі наданого контексту. "
-    "Обов'язково вкажи джерело"
+    "Ти лісовий помічник. Ти відповідаєш ТІЛЬКИ на основі наданого контексту. "
+    "Якщо в контексті немає точної відповіді на питання, ти ПОВИНЕН відповісти: "
+    f"'{NO_ANSWER_IN_DOCS_MESSAGE}'. "
+    "Заборонено використовувати будь-які зовнішні знання. "
+    "Якщо відповідь є в контексті — обов'язково вкажи джерело."
 )
 
 FALLBACK_EXTRACT_MODELS: tuple[str, ...] = (
@@ -299,6 +304,10 @@ class GroqService:
         if not cleaned_question:
             raise LLMServiceError("Запитання не може бути порожнім.")
 
+        if not context_chunks:
+            logger.info("Контекстні чанки відсутні — повернення стандартної анти-галюцинаційної відповіді.")
+            return NO_ANSWER_IN_DOCS_MESSAGE
+
         formatted_context = _format_context_chunks(context_chunks)
         user_prompt = (
             f"Контекст:\n{formatted_context}\n\n"
@@ -318,7 +327,7 @@ class GroqService:
                     {"role": "system", "content": GENERATE_ANSWER_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                temperature=0.3,
+                temperature=0.0,
             )
             self._model_llm = used_model
             answer = (response.choices[0].message.content or "").strip()

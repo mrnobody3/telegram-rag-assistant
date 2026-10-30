@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from bot.exceptions import AppException, RateLimitExceededError
+from bot.services.llm_groq import NO_ANSWER_IN_DOCS_MESSAGE
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -45,7 +46,7 @@ def format_answer_with_sources(
 ) -> str:
     """Чиста функція форматування відповіді LLM із додаванням списку джерел (автор, дата, файл)."""
     cleaned_answer = answer.strip()
-    if not documents:
+    if not documents or NO_ANSWER_IN_DOCS_MESSAGE in cleaned_answer:
         return cleaned_answer
 
     source_lines: list[str] = []
